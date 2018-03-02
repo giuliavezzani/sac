@@ -5,12 +5,13 @@ from rllab.core.serializable import Serializable
 from sandbox.rocky.tf.core.parameterized import Parameterized
 
 from sac.misc.mlp import mlp
+from sac.misc.mlp import mlp_extra
 from sac.misc import tf_utils
 
 
 class ValueFunction(Parameterized, Serializable):
 
-    def __init__(self, name, input_pls, hidden_layer_sizes):
+    def __init__(self, name, input_pls, hidden_layer_sizes, hidden_layer_sizes_extra, task):
         Parameterized.__init__(self)
         Serializable.quick_init(self, locals())
 
@@ -18,7 +19,9 @@ class ValueFunction(Parameterized, Serializable):
         self._input_pls = input_pls
         self._layer_sizes = list(hidden_layer_sizes) + [None]
 
-        self._output_t = self.get_output_for(*self._input_pls)
+        self.output_t = []
+        for task in range(self._num_tasks):
+            self._output_t.append(self.get_output_for(*self._input_pls, task))
 
     def get_output_for(self, *inputs, reuse=False):
         with tf.variable_scope(self._name, reuse=reuse):
@@ -28,9 +31,21 @@ class ValueFunction(Parameterized, Serializable):
                 layer_sizes=self._layer_sizes,
             )  # N
 
+        original_name = self._name
+        self._name = self._name + '-' + str(task)
+        with tf.variable_scope(self._name, reuse=reuse):
+            value_t = mlp_extra(
+                inputs=value_t,
+                output_nonlinearity=None,
+                layer_sizes=self._layer_sizes,
+                layer_sizes_extra=self._layer_sizes_extra,
+            )
+
+        self._name = original_name
         return value_t
 
-    def eval(self, *inputs):
+    def eval(self, *inputs, task):
+        self._task = task
         feeds = {pl: val for pl, val in zip(self._input_pls, inputs)}
 
         return tf_utils.get_default_session().run(self._output_t, feeds)
@@ -47,9 +62,15 @@ class ValueFunction(Parameterized, Serializable):
         )
 
 
-class NNVFunction(ValueFunction):
+class NNVFunctionMultiHead(ValueFunction):
 
-    def __init__(self, env_spec, hidden_layer_sizes=(100, 100)):
+    def __init__(self,
+                 env_spec,
+                 hidden_layer_sizes=None,
+                 hidden_layer_sizes_extra=None,
+                 name='value_function',
+                 task=0,
+                 num_tasks=2):
         Serializable.quick_init(self, locals())
 
         self._Do = env_spec.observation_space.flat_dim
@@ -59,12 +80,18 @@ class NNVFunction(ValueFunction):
             name='observation',
         )
 
-        super(NNVFunction, self).__init__(
-            'vf', (self._obs_pl,), hidden_layer_sizes)
+        super(NNVFunctionMultiHead, self).__init__(
+            'vaue_function', (self._obs_pl,), hidden_layer_sizes)
 
 
-class NNQFunction(ValueFunction):
-    def __init__(self, env_spec, hidden_layer_sizes=(100, 100)):
+class NNQFunctionMultiHead(ValueFunction):
+    def __init__(self,
+                 env_spec,
+                 hidden_layer_sizes=None,
+                 hidden_layer_sizes_extra=None,
+                 name='q_function',
+                 task=0,
+                 num_tasks=2):
         Serializable.quick_init(self, locals())
 
         self._Da = env_spec.action_space.flat_dim
@@ -82,5 +109,5 @@ class NNQFunction(ValueFunction):
             name='actions',
         )
 
-        super(NNQFunction, self).__init__(
+        super(NNQFunctionMultiHead, self).__init__(
             'qf', (self._obs_pl, self._action_pl), hidden_layer_sizes)

@@ -13,7 +13,7 @@ from sac.policies import NNPolicy
 from sac.misc import tf_utils
 
 
-class GMMPolicy(NNPolicy, Serializable):
+class GMMPolicyMultiTask(NNPolicy, Serializable):
     """Gaussian Mixture Model policy"""
     def __init__(self, env_spec, K=2, hidden_layer_sizes=(100, 100), reg=0.001,
                  squash=True, qf=None):
@@ -30,7 +30,7 @@ class GMMPolicy(NNPolicy, Serializable):
             qf (`ValueFunction`): Q-function approximator.
         """
         Serializable.quick_init(self, locals())
-
+        self._task = task
         self._hidden_layers = hidden_layer_sizes
         self._Da = env_spec.action_space.flat_dim
         self._Ds = env_spec.observation_space.flat_dim
@@ -47,17 +47,17 @@ class GMMPolicy(NNPolicy, Serializable):
 
         self._dist = self.get_distribution_for(self._obs_pl)
 
-        super(GMMPolicy, self).__init__(
+        super(GMMPolicyMultiTask, self).__init__(
             env_spec,
             self._obs_pl,
             tf.tanh(self._dist.x_t) if squash else self._dist.x_t,
-            'policy'
+            'policy-'+str(self._task)
         )
 
     def get_distribution_for(self, obs_t, reuse=False):
         """Create the actual GMM distribution instance."""
 
-        with tf.variable_scope('policy', reuse=reuse):
+        with tf.variable_scope('policy-'+str(self._task), reuse=reuse):
             gmm = GMM(
                 K=self._K,
                 hidden_layers_sizes=self._hidden_layers,
@@ -69,7 +69,7 @@ class GMMPolicy(NNPolicy, Serializable):
         return gmm
 
     @overrides
-    def get_action(self, obs):
+    def get_action(self, obs, task):
         """Sample action based on the observations.
 
         If `self._is_deterministic` is True, returns a greedily sampled action
@@ -87,7 +87,7 @@ class GMMPolicy(NNPolicy, Serializable):
         feeds = {self._obs_pl: obs[None]}
         mus = tf.get_default_session().run(self._dist.mus_t, feeds)[0]  # K x Da
 
-        qs = self._qf.eval(obs[None], mus)
+        qs = self._qf.eval(obs[None], task, mus)
         max_ind = np.argmax(qs)
 
         return mus[max_ind, :], {}  # Da

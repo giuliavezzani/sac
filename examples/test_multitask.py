@@ -3,11 +3,12 @@ import argparse
 from rllab.envs.normalized_env import normalize
 from rllab.misc.instrument import VariantGenerator
 
-from sac.algos import SAC
+import doodad as dd
+from sac.algos import SACMultiTask
 from sac.envs.gym_env import GymEnv
 from sac.misc.instrument import run_sac_experiment
 from sac.misc.utils import timestamp
-from sac.policies.gmm import GMMPolicy
+from sac.policies.gmm import GMMPolicyMultiTask
 from sac.replay_buffers import SimpleReplayBuffer
 from sac.value_functions import NNQFunction, NNVFunction
 from softqlearning.value_functions import NNQFunctionMultiHea
@@ -21,7 +22,9 @@ SHARED_PARAMS = {
     "discount": 0.99,
     "tau": 0.01,
     "K": 4,
-    "layer_size": 128,
+    'layer_sizes': 128,
+    'layer_sizes_qf': 128,
+    'layer_sizes_extra_qf': 128,
     "batch_size": 128,
     "max_pool_size": 1E6,
     "n_train_repeat": 1,
@@ -62,12 +65,12 @@ ENV_PARAMS = {
         'n_epochs': 5000,
         'scale_reward': 3,
     },
-    'ant': { # 8 DoF
+    'ant': {  # 8 DoF
         'prefix': 'ant',
         'env_name': 'Ant-v1',
         'max_path_length': 1000,
         'n_epochs': 10000,
-        'scale_reward': 3,
+        'reward_scale': 3,
     },
     'humanoid': { # 21 DoF
         'prefix': 'humanoid',
@@ -76,28 +79,45 @@ ENV_PARAMS = {
         'n_epochs': 20000,
         'scale_reward': 3,
     },
+    'point-mass': {  # 8 DoF
+        'prefix': 'point-mass',
+        'env_name': 'PointMass',
+        'max_path_length': 100,
+        'n_epochs': 10000,
+        'reward_scale': 1,
+    },
 }
 DEFAULT_ENV = 'swimmer'
 AVAILABLE_ENVS = list(ENV_PARAMS.keys())
 
 def parse_args():
+    dd_log_dir = dd.get_args('log_dir', '../../data/sac/multitasl/tests/')
+    dd_file_goal = dd.get_args('file_goals', '/home/giulia/NIPS/sac/sac/environments/goals/goals_ant_forward_backward.pkl')
+    dd_file_env = dd.get_args('file_env', '/home/giulia/NIPS/sac/low_gear_ratio_ant.xml')
     parser = argparse.ArgumentParser()
     parser.add_argument('--env',
                         type=str,
                         choices=AVAILABLE_ENVS,
-                        default='swimmer')
+                        default='ant')
     parser.add_argument('--exp_name',type=str, default=timestamp())
     parser.add_argument('--mode', type=str, default='local')
     parser.add_argument('--log_dir', type=str, default=None)
+    parser.add_argument('--file_goals', type=str, default=dd_file_goal)
+    parser.add_argument('--file_env', type=str, default=dd_file_env)
     args = parser.parse_args()
 
     return args
-
 
 def get_variants(args):
     env_params = ENV_PARAMS[args.env]
     params = SHARED_PARAMS
     params.update(env_params)
+    file_params = {'file_goals': args.file_goals}
+    params.update(file_params)
+    file_params = {'file_env': args.file_env}
+    params.update(file_params)
+    file_params = {'log_dir': args.log_dir}
+    params.update(file_params)
 
     vg = VariantGenerator()
     for key, val in params.items():
@@ -110,19 +130,21 @@ def get_variants(args):
 
 
 def run_experiment(variant):
-    if variant['env_name'] == 'humanoid-rllab':
-        from rllab.envs.mujoco.humanoid_env import HumanoidEnv
-        env = normalize(HumanoidEnv())
-    elif variant['env_name'] == 'swimmer-rllab':
-        from rllab.envs.mujoco.swimmer_env import SwimmerEnv
-        env = normalize(SwimmerEnv())
-    else:
-        env = normalize(GymEnv(variant['env_name']))
+    #if variant['env_name'] == 'humanoid-rllab':
+    #    from rllab.envs.mujoco.humanoid_env import HumanoidEnv
+    #    env = normalize(HumanoidEnv())
+    #elif variant['env_name'] == 'swimmer-rllab':
+    #    from rllab.envs.mujoco.swimmer_env import SwimmerEnv
+    #    env = normalize(SwimmerEnv())
+    #else:
+    #    env = normalize(GymEnv(variant['env_name']))
+    envs = []
+    num_tasks = 2
+    policies = []
+    qfs = []
+    kernel_fns = []
+    pools = []
 
-    pool = SimpleReplayBuffer(
-        env_spec=env.spec,
-        max_replay_buffer_size=variant['max_pool_size'],
-    )
 
     base_kwargs = dict(
         min_pool_size=variant['max_path_length'],
@@ -134,40 +156,49 @@ def run_experiment(variant):
         eval_render=False,
         eval_n_episodes=1,
         eval_deterministic=True,
+        num_tasks=2,
     )
 
-    M = variant['layer_size']
-    qf = NNQFunction(
-        env_spec=env.spec,
-        hidden_layer_sizes=[M, M],
-    )
+    M = variant['layer_sizes_qf']
+    MP = variant['layer_sizes']
+    N = variant['layer_sizes_extra_qf']
 
-    vf = NNVFunction(
-        env_spec=env.spec,
-        hidden_layer_sizes=[M, M],
-    )
+    qf = NNQFunctionMultiHead(env_spec=envs[0].spec, hidden_layer_sizes= [M, M], hidden_layer_sizes_extra = [N], num_tasks=num_tasks)
 
-    policy = GMMPolicy(
-        env_spec=env.spec,
-        K=variant['K'],
-        hidden_layer_sizes=[M, M],
-        qf=qf,
-        reg=0.001,
-    )
+    ## To adapt also V function
+    vf = NNVFunction(env_spec=env.spec, hidden_layer_sizes=[M, M],)
 
-    algorithm = SAC(
+    for task in range(num_tasks):
+        if variant['env_name'] == 'Ant-v1':
+            envs.append(AntEnvRandGoalRing(file_goals=variant['file_goals'], file_env=variant['file_env'], goal=task))
+        elif variant['env_name'] == 'PointMass':
+            envs.append(PointEnv(file_goals=variant['file_goals'], file_env=variant['file_env'], goal=task))
+            policies.append( GMMPolicyMultiTask(env_spec=env.spec, K=variant['K'], hidden_layer_sizes=[M, M], qf=qf, reg=0.001,task=task,
+            ))
+        #qfs.append(NNQFunction(env_spec=envs[task].spec, hidden_layer_sizes=[M, M], task=task))
+        #kernel_fns.append(adaptive_isotropic_gaussian_kernel)
+
+        pools.append(SimpleReplayBuffer(
+            env_spec=envs[task].spec,
+            max_replay_buffer_size=1e6,
+    ))
+
+
+
+    algorithm = SACMultiTask(
         base_kwargs=base_kwargs,
-        env=env,
-        policy=policy,
-        pool=pool,
+        envs=envs,
+        policies=policies,
+        pools=pools,
         qf=qf,
         vf=vf,
-
         lr=variant['lr'],
         scale_reward=variant['scale_reward'],
         discount=variant['discount'],
         tau=variant['tau'],
-
+        num_tasks=2,
+        file_goals=variant['file_goals'],
+        file_env=variant['file_env']
         save_full_state=False,
     )
 

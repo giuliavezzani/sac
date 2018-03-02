@@ -152,3 +152,78 @@ def mlp(inputs,
         layer = tf.squeeze(layer, axis=-1)
 
     return layer
+
+def mlp_extra(inputs,
+        layer_sizes,
+        layer_sizes_extra,
+        nonlinearity=tf.nn.relu,
+        output_nonlinearity=tf.nn.tanh,
+        task=0,
+        W_initializer=None,
+        b_initializer=None):
+    """
+    Creates a multi-layer perceptron with given hidden sizes. A nonlinearity
+    is applied after every hidden layer.
+
+    Supports input tensors of rank 2 and rank 3. All inputs should have the same
+    tensor rank. It is assumed that the vectors along the last axis are the
+    data points, and an mlp is applied independently to each leading dimension.
+    If multiple inputs are provided, then the corresponding rank-1 vectors
+    are concatenated along the last axis. The leading dimensions of the network
+    output are equal to the 'outer product' of the inputs' shapes.
+
+    Example:
+
+    input 1 shape: N x K x D1
+    input 2 shape: N x 1 x D2
+
+    output shape: N x K x (number of output units)
+
+    :param inputs: List of input tensors.
+    :param layer_sizes: List of layers sizes, including output layer size.
+    :param nonlinearity: Hidden layer nonlinearity.
+    :param output_nonlinearity: Output layer nonlinearity.
+    :param W_initializer: Weight initializer.
+    :param b_initializer: Bias initializer.
+    :return:
+    """
+    if type(inputs) is tf.Tensor:
+        inputs = [inputs]
+
+    squeeze_output = False
+    if layer_sizes[-1] is None:
+        squeeze_output = True
+        layer_sizes = list(layer_sizes)
+        layer_sizes[-1] = 1
+
+    # Take care of the input layer separately to make use of broadcasting in
+    # a case of several input tensors.
+    with tf.variable_scope('layer0'):
+        layer = _bias_variable(layer_sizes[0], b_initializer)
+        for i, inp in enumerate(inputs):
+            with tf.variable_scope('input' + str(i)):
+                layer += affine(
+                    inp=inp,
+                    units=layer_sizes[0],
+                    bias=False,
+                    W_initializer=W_initializer,
+                    b_initializer=b_initializer
+                )
+
+        layer = nonlinearity(layer)
+
+    for i_layer, size in enumerate(layer_sizes[1:], 1):
+        with tf.variable_scope('layer{0}'.format(i_layer)):
+            layer = affine(layer, size,
+                           W_initializer=W_initializer,
+                           b_initializer=b_initializer)
+            if i_layer < len(layer_sizes) - 1:
+                layer = nonlinearity(layer)
+
+    if output_nonlinearity is not None:
+        layer = output_nonlinearity(layer)
+
+    if squeeze_output:
+        layer = tf.squeeze(layer, axis=-1)
+
+    return layer
