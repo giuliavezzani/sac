@@ -16,7 +16,7 @@ from sac.misc import tf_utils
 class GMMPolicyMultiTask(NNPolicy, Serializable):
     """Gaussian Mixture Model policy"""
     def __init__(self, env_spec, K=2, hidden_layer_sizes=(100, 100), reg=0.001,
-                 squash=True, qf=None):
+                 squash=True, qf=None, task=0):
         """
         Args:
             env_spec (`rllab.EnvSpec`): Specification of the environment

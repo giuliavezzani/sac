@@ -11,7 +11,7 @@ from sac.misc import tf_utils
 from sac.misc.sampler import rollouts
 
 
-class RLAlgorithm(Algorithm):
+class RLAlgorithmMultiTask(Algorithm):
     """Abstract RLAlgorithm.
 
     Implements the _train and _evaluate methods to be used
@@ -166,7 +166,7 @@ class RLAlgorithm(Algorithm):
                     gt.stamp('train')
 
                 print('eval')
-                self._evaluate(epoch)
+                #self._evaluate(epoch)
                 print('after eval')
                 params = self.get_snapshot(epoch)
                 logger.save_itr_params(epoch, params)
@@ -211,7 +211,7 @@ class RLAlgorithm(Algorithm):
         for task in range(self._num_tasks):
             print(task)
             paths.append(rollouts(self._eval_envs[task], self.policies[task], self._max_path_length,
-                         self._eval_n_episodes))
+                         self._eval_n_episodes, task))
 
             total_returns = [path['rewards'].sum() for path in paths[task]]
             episode_lengths = [len(p['rewards']) for p in paths[task]]

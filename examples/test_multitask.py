@@ -4,16 +4,15 @@ from rllab.envs.normalized_env import normalize
 from rllab.misc.instrument import VariantGenerator
 
 import doodad as dd
-from sac.algos import SACMultiTask
+from sac.algos.sac_multitask import SACMultiTask
 from sac.envs.gym_env import GymEnv
 from sac.misc.instrument import run_sac_experiment
 from sac.misc.utils import timestamp
 from sac.policies.gmm import GMMPolicyMultiTask
 from sac.replay_buffers import SimpleReplayBuffer
-from sac.value_functions import NNQFunction, NNVFunction
-from softqlearning.value_functions import NNQFunctionMultiHea
-from softqlearning.environments.multitask.ant import AntEnvRandGoalRing
-from softqlearning.environments.multitask.point_mass import PointEnv
+from sac.value_functions import NNQFunctionMultiHead, NNVFunctionMultiHead
+from sac.envs.multitask.ant import AntEnvRandGoalRing
+from sac.envs.multitask.point_mass import PointEnv
 
 
 SHARED_PARAMS = {
@@ -92,7 +91,7 @@ AVAILABLE_ENVS = list(ENV_PARAMS.keys())
 
 def parse_args():
     dd_log_dir = dd.get_args('log_dir', '../../data/sac/multitasl/tests/')
-    dd_file_goal = dd.get_args('file_goals', '/home/giulia/NIPS/sac/sac/environments/goals/goals_ant_forward_backward.pkl')
+    dd_file_goal = dd.get_args('file_goals', '/home/giulia/NIPS/sac/sac/envs/goals/goals_ant_forward_backward.pkl')
     dd_file_env = dd.get_args('file_env', '/home/giulia/NIPS/sac/low_gear_ratio_ant.xml')
     parser = argparse.ArgumentParser()
     parser.add_argument('--env',
@@ -163,18 +162,12 @@ def run_experiment(variant):
     MP = variant['layer_sizes']
     N = variant['layer_sizes_extra_qf']
 
-    qf = NNQFunctionMultiHead(env_spec=envs[0].spec, hidden_layer_sizes= [M, M], hidden_layer_sizes_extra = [N], num_tasks=num_tasks)
-
-    ## To adapt also V function
-    vf = NNVFunction(env_spec=env.spec, hidden_layer_sizes=[M, M],)
-
     for task in range(num_tasks):
         if variant['env_name'] == 'Ant-v1':
             envs.append(AntEnvRandGoalRing(file_goals=variant['file_goals'], file_env=variant['file_env'], goal=task))
         elif variant['env_name'] == 'PointMass':
             envs.append(PointEnv(file_goals=variant['file_goals'], file_env=variant['file_env'], goal=task))
-            policies.append( GMMPolicyMultiTask(env_spec=env.spec, K=variant['K'], hidden_layer_sizes=[M, M], qf=qf, reg=0.001,task=task,
-            ))
+
         #qfs.append(NNQFunction(env_spec=envs[task].spec, hidden_layer_sizes=[M, M], task=task))
         #kernel_fns.append(adaptive_isotropic_gaussian_kernel)
 
@@ -184,6 +177,14 @@ def run_experiment(variant):
     ))
 
 
+    qf = NNQFunctionMultiHead(env_spec=envs[0].spec, hidden_layer_sizes= [M, M], hidden_layer_sizes_extra = [N], num_tasks=num_tasks)
+
+    ## To adapt also V function
+    vf = NNVFunctionMultiHead(env_spec=envs[0].spec, hidden_layer_sizes=[M, M], hidden_layer_sizes_extra = [N], num_tasks=num_tasks)
+
+    for task in range(num_tasks):
+        policies.append( GMMPolicyMultiTask(env_spec=envs[task].spec, K=variant['K'], hidden_layer_sizes=[M, M], qf=qf, reg=0.001,task=task,
+        ))
 
     algorithm = SACMultiTask(
         base_kwargs=base_kwargs,
@@ -193,13 +194,12 @@ def run_experiment(variant):
         qf=qf,
         vf=vf,
         lr=variant['lr'],
-        scale_reward=variant['scale_reward'],
+        scale_reward=variant['reward_scale'],
         discount=variant['discount'],
         tau=variant['tau'],
         num_tasks=2,
-        file_goals=variant['file_goals'],
-        file_env=variant['file_env']
         save_full_state=False,
+        batch_size=variant['batch_size'],
     )
 
     algorithm.train()

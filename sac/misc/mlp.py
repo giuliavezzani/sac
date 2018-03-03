@@ -63,6 +63,8 @@ def affine(
     :param bias_name: Name of the bias.
     :return: Tensor defined as input.dot(weight) + bias.
     """
+
+
     input_size = inp.get_shape()[-1].value
     W = _weight_variable([input_size, units],
                          initializer=W_initializer,
@@ -123,6 +125,7 @@ def mlp(inputs,
 
     # Take care of the input layer separately to make use of broadcasting in
     # a case of several input tensors.
+
     with tf.variable_scope('layer0'):
         layer = _bias_variable(layer_sizes[0], b_initializer)
         for i, inp in enumerate(inputs):
@@ -148,8 +151,8 @@ def mlp(inputs,
     if output_nonlinearity is not None:
         layer = output_nonlinearity(layer)
 
-    if squeeze_output:
-        layer = tf.squeeze(layer, axis=-1)
+    #if squeeze_output:
+    #    layer = tf.squeeze(layer, axis=-1)
 
     return layer
 
@@ -191,33 +194,33 @@ def mlp_extra(inputs,
         inputs = [inputs]
 
     squeeze_output = False
-    if layer_sizes[-1] is None:
+    if layer_sizes_extra[-1] is None:
         squeeze_output = True
-        layer_sizes = list(layer_sizes)
-        layer_sizes[-1] = 1
+        layer_sizes_extra = list(layer_sizes_extra)
+        layer_sizes_extra[-1] = 1
 
     # Take care of the input layer separately to make use of broadcasting in
     # a case of several input tensors.
-    with tf.variable_scope('layer0'):
-        layer = _bias_variable(layer_sizes[0], b_initializer)
+    with tf.variable_scope('layer'+str(len(layer_sizes))):
+        layer = _bias_variable(layer_sizes_extra[0], b_initializer)
         for i, inp in enumerate(inputs):
-            with tf.variable_scope('input' + str(i)):
-                layer += affine(
-                    inp=inp,
-                    units=layer_sizes[0],
-                    bias=False,
-                    W_initializer=W_initializer,
-                    b_initializer=b_initializer
-                )
+            #with tf.variable_scope('input' + str(i)):
+            layer += affine(
+                inp=inp,
+                units=layer_sizes_extra[0],
+                bias=False,
+                W_initializer=W_initializer,
+                b_initializer=b_initializer
+            )
 
         layer = nonlinearity(layer)
 
-    for i_layer, size in enumerate(layer_sizes[1:], 1):
-        with tf.variable_scope('layer{0}'.format(i_layer)):
+    for i_layer, size in enumerate(layer_sizes_extra[1:], 1):
+        with tf.variable_scope('layer'+str(i_layer+len(layer_sizes))):
             layer = affine(layer, size,
                            W_initializer=W_initializer,
                            b_initializer=b_initializer)
-            if i_layer < len(layer_sizes) - 1:
+            if i_layer < len(layer_sizes_extra) - 1:
                 layer = nonlinearity(layer)
 
     if output_nonlinearity is not None:

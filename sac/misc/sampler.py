@@ -3,7 +3,7 @@ import time
 
 
 def rollout(env, policy, path_length, render=False, speedup=10, callback=None,
-            render_mode='human'):
+            render_mode='human', task=0):
 
     ims = list()
 
@@ -21,7 +21,7 @@ def rollout(env, policy, path_length, render=False, speedup=10, callback=None,
     t = 0  # To make edge case path_length=0 work.
     for t in range(t, path_length):
 
-        action, _ = policy.get_action(observation)
+        action, _ = policy.get_action(observation, task)
 
         if callback is not None:
             callback(observation, action)

@@ -18,12 +18,13 @@ class ValueFunction(Parameterized, Serializable):
         self._name = name
         self._input_pls = input_pls
         self._layer_sizes = list(hidden_layer_sizes) + [None]
+        self._layer_sizes_extra  = list(hidden_layer_sizes_extra) + [None]
 
-        self.output_t = []
+        self._output_t = []
         for task in range(self._num_tasks):
-            self._output_t.append(self.get_output_for(*self._input_pls, task))
+            self._output_t.append(self.get_output_for(*self._input_pls, task=task, reuse=tf.AUTO_REUSE))
 
-    def get_output_for(self, *inputs, reuse=False):
+    def get_output_for(self, *inputs, task, reuse=False):
         with tf.variable_scope(self._name, reuse=reuse):
             value_t = mlp(
                 inputs=inputs,
@@ -32,6 +33,7 @@ class ValueFunction(Parameterized, Serializable):
             )  # N
 
         original_name = self._name
+        print('name', self._name)
         self._name = self._name + '-' + str(task)
         with tf.variable_scope(self._name, reuse=reuse):
             value_t = mlp_extra(
@@ -73,6 +75,7 @@ class NNVFunctionMultiHead(ValueFunction):
                  num_tasks=2):
         Serializable.quick_init(self, locals())
 
+        self._num_tasks = num_tasks
         self._Do = env_spec.observation_space.flat_dim
         self._obs_pl = tf.placeholder(
             tf.float32,
@@ -81,7 +84,8 @@ class NNVFunctionMultiHead(ValueFunction):
         )
 
         super(NNVFunctionMultiHead, self).__init__(
-            'vaue_function', (self._obs_pl,), hidden_layer_sizes)
+            'vaue_function', (self._obs_pl,), hidden_layer_sizes=hidden_layer_sizes,
+             hidden_layer_sizes_extra=hidden_layer_sizes_extra, task=task)
 
 
 class NNQFunctionMultiHead(ValueFunction):
@@ -94,6 +98,7 @@ class NNQFunctionMultiHead(ValueFunction):
                  num_tasks=2):
         Serializable.quick_init(self, locals())
 
+        self._num_tasks = num_tasks
         self._Da = env_spec.action_space.flat_dim
         self._Do = env_spec.observation_space.flat_dim
 
@@ -110,4 +115,4 @@ class NNQFunctionMultiHead(ValueFunction):
         )
 
         super(NNQFunctionMultiHead, self).__init__(
-            'qf', (self._obs_pl, self._action_pl), hidden_layer_sizes)
+            'qf', (self._obs_pl, self._action_pl), hidden_layer_sizes, hidden_layer_sizes_extra, num_tasks)

@@ -5,12 +5,12 @@ from rllab.core.serializable import Serializable
 from rllab.misc import logger
 from rllab.misc.overrides import overrides
 
-from .base import RLAlgorithmMultiTask
+from .base_multitask import RLAlgorithmMultiTask
 
 EPS = 1E-6
 
 
-class SACMultiTask(RLAlgorithm, Serializable):
+class SACMultiTask(RLAlgorithmMultiTask, Serializable):
     """Soft Actor-Critic (SAC)
 
     Example:
@@ -84,8 +84,9 @@ class SACMultiTask(RLAlgorithm, Serializable):
             scale_reward=1,
             discount=0.99,
             tau=0.01,
-
+            num_tasks=2,
             save_full_state=False,
+            batch_size=128
     ):
         """
         Args:
@@ -110,7 +111,7 @@ class SACMultiTask(RLAlgorithm, Serializable):
         """
 
         Serializable.quick_init(self, locals())
-        super(SAC, self).__init__(**base_kwargs)
+        super(SACMultiTask, self).__init__(**base_kwargs)
 
         self._envs = envs
         self._policies = policies
@@ -131,8 +132,8 @@ class SACMultiTask(RLAlgorithm, Serializable):
 
         self._save_full_state = save_full_state
 
-        self._Da = self._env.action_space.flat_dim
-        self._Do = self._env.observation_space.flat_dim
+        self._Da = self._envs[0].action_space.flat_dim
+        self._Do = self._envs[0].observation_space.flat_dim
 
         self._training_ops = list()
 
@@ -147,7 +148,7 @@ class SACMultiTask(RLAlgorithm, Serializable):
     def train(self):
         """Initiate training of the SAC instance."""
 
-        self._train(self._env, self._policy, self._pool)
+        self._train(self._envs, self._policies, self._pools)
 
     def _init_placeholders(self):
         """Create input placeholders for the SAC algorithm.
@@ -206,11 +207,11 @@ class SACMultiTask(RLAlgorithm, Serializable):
             self._qf_t = self._qf.get_output_for(
                 self._obs_pl[task * self._batch_size_per_task : (task + 1) * self._batch_size_per_task],
                 self._action_pl[task * self._batch_size_per_task : (task + 1) * self._batch_size_per_task],
-                task, reuse=True)  # N
+                task=task, reuse=True)  # N
 
             with tf.variable_scope('target'):
                 vf_next_target_t = self._vf.get_output_for(self._obs_next_pl[task * self._batch_size_per_task : (task + 1) * self._batch_size_per_task],
-                task)  # N
+                task=task, reuse=tf.AUTO_REUSE)  # N
                 self._vf_target_params = self._vf.get_params_internal()
 
             ys = tf.stop_gradient(
@@ -252,12 +253,12 @@ class SACMultiTask(RLAlgorithm, Serializable):
             log_pi_t = policy_dist.log_p_t  # N
 
             self._vf_t = self._vf.get_output_for(self._obs_pl[task * self._batch_size_per_task : (task + 1) * self._batch_size_per_task],
-                task, reuse=True)  # N
+                task=task, reuse=True)  # N
             self._vf_params = self._vf.get_params_internal()
 
             log_target_t = self._qf.get_output_for(
                 self._obs_pl[task * self._batch_size_per_task : (task + 1) * self._batch_size_per_task],
-                tf.tanh(policy_dist.x_t), task, reuse=True)  # N
+                tf.tanh(policy_dist.x_t), task=task, reuse=True)  # N
             corr = self._squash_correction(policy_dist.x_t)
 
             kl_surrogate_loss_t = tf.reduce_mean(log_pi_t * tf.stop_gradient(
@@ -296,7 +297,7 @@ class SACMultiTask(RLAlgorithm, Serializable):
 
     @overrides
     def _init_training(self, env, policy, pool):
-        super(SAC, self)._init_training(env, policy, pool)
+        super(SACMultiTask, self)._init_training(env, policy, pool)
         self._sess.run(self._target_ops)
 
     @overrides
@@ -362,7 +363,7 @@ class SACMultiTask(RLAlgorithm, Serializable):
         else:
             snapshot= {
             'epoch': epoch,
-            'qf': self.qf,
+            'qf': self._qf,
             }
             for task in range(self._num_tasks):
                 snapshot['policy-' + str(task)] = self.policies[task]
