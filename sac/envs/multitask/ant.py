@@ -28,14 +28,16 @@ class AntEnvRandGoalRing(MujocoEnv, Serializable):
         self._goal_idx = goal
         print(goal)
         #FILE = 'low_gear_ratio_ant.xml'
-
+        #args = {file_goals}
         print(FILE)
         #self.goals = pickle.load(open("/home/giulia/NIPS/softqlearning/softqlearning/environments/goals/goals_ant_forward_backward.pkl", "rb"))
         self.goals = pickle.load(open(file_goals, "rb"))
         #self.goals = pickle.load(open("softqlearning/environments/goals/same_goals_ant.pkl", "rb"))
         #self.goals = pickle.load(open("/home/russellm/generativemodel_tasks/maml_rl_fullversion/rllab/envs/mujoco/goals_ant_val.pkl", "rb"))
+        #super(AntEnvRandGoalRing, self).__init__(*args, **kwargs, file_path=FILE)
         super(AntEnvRandGoalRing, self).__init__(*args, **kwargs, file_path=FILE)
-        Serializable.__init__(self, *args, **kwargs)
+        #Serializable.__init__(self, *args, **kwargs)
+        Serializable.quick_init(self, locals())
 
     def get_current_obs(self):
         return np.concatenate([

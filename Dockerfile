@@ -77,6 +77,8 @@ ENV PYTHONPATH ${RLLAB_PATH}:${PYTHONPATH}
 # ========= mujoco ===============
 ENV MUJOCO_VERSION=1.3.1 \
     MUJOCO_PATH=/root/.mujoco
+    
+COPY ./mjkey.txt /root/.mujoco/
 
 RUN MUJOCO_ZIP="mjpro$(echo ${MUJOCO_VERSION} | sed -e "s/\.//g")_linux.zip" \
     && mkdir -p ${MUJOCO_PATH} \
@@ -84,4 +86,5 @@ RUN MUJOCO_ZIP="mjpro$(echo ${MUJOCO_VERSION} | sed -e "s/\.//g")_linux.zip" \
     && unzip ${MUJOCO_PATH}/${MUJOCO_ZIP} -d ${MUJOCO_PATH} \
     && cp ${MUJOCO_PATH}/mjpro131/bin/libmujoco131.so ${RLLAB_PATH}/vendor/mujoco/ \
     && cp ${MUJOCO_PATH}/mjpro131/bin/libglfw.so.3 ${RLLAB_PATH}/vendor/mujoco/ \
+    && cp ${MUJOCO_PATH}/mjkey.txt ${RLLAB_PATH}/vendor/mujoco/mjkey.txt \
     && rm ${MUJOCO_PATH}/${MUJOCO_ZIP}

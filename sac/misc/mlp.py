@@ -64,7 +64,6 @@ def affine(
     :return: Tensor defined as input.dot(weight) + bias.
     """
 
-
     input_size = inp.get_shape()[-1].value
     W = _weight_variable([input_size, units],
                          initializer=W_initializer,
@@ -151,8 +150,8 @@ def mlp(inputs,
     if output_nonlinearity is not None:
         layer = output_nonlinearity(layer)
 
-    if squeeze_output:
-        layer = tf.squeeze(layer, axis=-1)
+    #if squeeze_output:
+    #    layer = tf.squeeze(layer, axis=-1)
 
 
     #import IPython
@@ -204,7 +203,7 @@ def mlp_extra(inputs,
 
     # Take care of the input layer separately to make use of broadcasting in
     # a case of several input tensors.
-    with tf.variable_scope('layer'+str(len(layer_sizes_extra))):
+    with tf.variable_scope('layer'+str(len(layer_sizes))):
         layer = _bias_variable(layer_sizes_extra[0], b_initializer)
         for i, inp in enumerate(inputs):
             #with tf.variable_scope('input' + str(i)):
@@ -217,6 +216,7 @@ def mlp_extra(inputs,
             )
 
         layer = nonlinearity(layer)
+
 
     for i_layer, size in enumerate(layer_sizes_extra[1:], 1):
         if not layer_sizes==None:
