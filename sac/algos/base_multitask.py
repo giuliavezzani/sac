@@ -262,6 +262,6 @@ class RLAlgorithmMultiTask(Algorithm):
         self._eval_envs = []
         for i in range(self._num_tasks):
             if self._eval_n_episodes > 0:
-                #self._eval_envs.append(deep_clone(self.envs[i], goal=i))
-                self._eval_envs.append(self.envs[i])
+                self._eval_envs.append(deep_clone(self.envs[i]))
+                #self._eval_envs.append(self.envs[i])
 #self._eval_envs.append(AntEnvRandGoalRing(self.file_goals,file_env=self.file_env, goal=i))

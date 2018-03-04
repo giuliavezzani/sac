@@ -278,6 +278,7 @@ class SACMultiTask(RLAlgorithmMultiTask, Serializable):
             loss=self._vf_loss_t,
             var_list=self._vf_params
         )
+
         self._training_ops.append(vf_train_op)
 
     @staticmethod

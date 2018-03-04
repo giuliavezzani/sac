@@ -151,9 +151,12 @@ def mlp(inputs,
     if output_nonlinearity is not None:
         layer = output_nonlinearity(layer)
 
-    #if squeeze_output:
-    #    layer = tf.squeeze(layer, axis=-1)
+    if squeeze_output:
+        layer = tf.squeeze(layer, axis=-1)
 
+
+    #import IPython
+    #IPython.embed()
     return layer
 
 def mlp_extra(inputs,
@@ -201,7 +204,7 @@ def mlp_extra(inputs,
 
     # Take care of the input layer separately to make use of broadcasting in
     # a case of several input tensors.
-    with tf.variable_scope('layer'+str(len(layer_sizes))):
+    with tf.variable_scope('layer'+str(len(layer_sizes_extra))):
         layer = _bias_variable(layer_sizes_extra[0], b_initializer)
         for i, inp in enumerate(inputs):
             #with tf.variable_scope('input' + str(i)):
@@ -216,12 +219,20 @@ def mlp_extra(inputs,
         layer = nonlinearity(layer)
 
     for i_layer, size in enumerate(layer_sizes_extra[1:], 1):
-        with tf.variable_scope('layer'+str(i_layer+len(layer_sizes))):
-            layer = affine(layer, size,
-                           W_initializer=W_initializer,
-                           b_initializer=b_initializer)
-            if i_layer < len(layer_sizes_extra) - 1:
-                layer = nonlinearity(layer)
+        if not layer_sizes==None:
+            with tf.variable_scope('layer'+str(i_layer+len(layer_sizes))):
+                layer = affine(layer, size,
+                               W_initializer=W_initializer,
+                               b_initializer=b_initializer)
+                if i_layer < len(layer_sizes_extra) - 1:
+                    layer = nonlinearity(layer)
+        else:
+            with tf.variable_scope('layer'+str(i_layer)):
+                layer = affine(layer, size,
+                               W_initializer=W_initializer,
+                               b_initializer=b_initializer)
+                if i_layer < len(layer_sizes_extra) - 1:
+                    layer = nonlinearity(layer)
 
     if output_nonlinearity is not None:
         layer = output_nonlinearity(layer)
