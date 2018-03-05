@@ -100,7 +100,7 @@ def parse_args():
                         default='ant')
     parser.add_argument('--exp_name',type=str, default=timestamp())
     parser.add_argument('--mode', type=str, default='local')
-    parser.add_argument('--log_dir', type=str, default=None)
+    parser.add_argument('--log_dir', type=str, default=dd_log_dir)
     parser.add_argument('--file_goals', type=str, default=dd_file_goal)
     parser.add_argument('--file_env', type=str, default=dd_file_env)
     args = parser.parse_args()
@@ -138,11 +138,13 @@ def run_experiment(variant):
     #else:
     #    env = normalize(GymEnv(variant['env_name']))
     envs = []
-    num_tasks = 2
+    num_tasks = 30
     policies = []
     qfs = []
     kernel_fns = []
     pools = []
+
+    print('LOG_DIR', variant['log_dir'])
 
 
     base_kwargs = dict(
@@ -155,7 +157,7 @@ def run_experiment(variant):
         eval_render=False,
         eval_n_episodes=1,
         eval_deterministic=True,
-        num_tasks=2,
+        num_tasks=num_tasks,
     )
 
     M = variant['layer_sizes_qf']
@@ -177,11 +179,11 @@ def run_experiment(variant):
     ))
 
 
-    qf = NNQFunctionMultiHead(env_spec=envs[0].spec, hidden_layer_sizes= [M, M, M], hidden_layer_sizes_extra = [N, N], num_tasks=num_tasks)
+    qf = NNQFunctionMultiHead(env_spec=envs[0].spec, hidden_layer_sizes= [M, M], hidden_layer_sizes_extra = [N, N, N, N], num_tasks=num_tasks)
     #qf = NNQFunctionMultiHead(env_spec=envs[0].spec,  hidden_layer_sizes_extra = [N, N], num_tasks=num_tasks)
 
     ## To adapt also V function
-    vf = NNVFunctionMultiHead(env_spec=envs[0].spec, hidden_layer_sizes=[M, M, M], hidden_layer_sizes_extra = [N, N], num_tasks=num_tasks)
+    vf = NNVFunctionMultiHead(env_spec=envs[0].spec, hidden_layer_sizes=[M, M], hidden_layer_sizes_extra = [N, N, N, N], num_tasks=num_tasks)
     #vf = NNVFunctionMultiHead(env_spec=envs[0].spec,  hidden_layer_sizes_extra = [N, N], num_tasks=num_tasks)
 
     for task in range(num_tasks):
@@ -199,7 +201,7 @@ def run_experiment(variant):
         scale_reward=variant['reward_scale'],
         discount=variant['discount'],
         tau=variant['tau'],
-        num_tasks=2,
+        num_tasks=num_tasks,
         save_full_state=False,
         batch_size=variant['batch_size'],
     )
