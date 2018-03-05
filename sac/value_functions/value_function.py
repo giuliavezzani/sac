@@ -41,11 +41,12 @@ class ValueFunction(Parameterized, Serializable):
                 )  # N
 
         original_name = self._name
-        print('name', self._name)
         self._name = self._name + '/task-' + str(task)
 
+        print(self._name)
         with tf.variable_scope(self._name, reuse=reuse):
             if not self._layer_sizes == None:
+
                 value_t = mlp_extra(
                     inputs=value_t,
                     output_nonlinearity=None,
@@ -53,16 +54,12 @@ class ValueFunction(Parameterized, Serializable):
                     layer_sizes_extra=self._layer_sizes_extra,
                 )
             else:
-
-                print('deb 2')
                 value_t = mlp(
                     inputs=inputs,
                     output_nonlinearity=None,
                     layer_sizes=self._layer_sizes_extra,
                 )
 
-        #import IPython
-        #IPython.embed()
         self._name = original_name
         return value_t
 

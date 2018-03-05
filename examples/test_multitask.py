@@ -177,11 +177,11 @@ def run_experiment(variant):
     ))
 
 
-    qf = NNQFunctionMultiHead(env_spec=envs[0].spec, hidden_layer_sizes= [M, M], hidden_layer_sizes_extra = [N, N], num_tasks=num_tasks)
+    qf = NNQFunctionMultiHead(env_spec=envs[0].spec, hidden_layer_sizes= [M, M, M], hidden_layer_sizes_extra = [N, N], num_tasks=num_tasks)
     #qf = NNQFunctionMultiHead(env_spec=envs[0].spec,  hidden_layer_sizes_extra = [N, N], num_tasks=num_tasks)
 
     ## To adapt also V function
-    vf = NNVFunctionMultiHead(env_spec=envs[0].spec, hidden_layer_sizes=[M, M], hidden_layer_sizes_extra = [N, N], num_tasks=num_tasks)
+    vf = NNVFunctionMultiHead(env_spec=envs[0].spec, hidden_layer_sizes=[M, M, M], hidden_layer_sizes_extra = [N, N], num_tasks=num_tasks)
     #vf = NNVFunctionMultiHead(env_spec=envs[0].spec,  hidden_layer_sizes_extra = [N, N], num_tasks=num_tasks)
 
     for task in range(num_tasks):
