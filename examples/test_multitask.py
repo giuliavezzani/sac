@@ -138,7 +138,7 @@ def run_experiment(variant):
     #else:
     #    env = normalize(GymEnv(variant['env_name']))
     envs = []
-    num_tasks = 30
+    num_tasks = 10
     policies = []
     qfs = []
     kernel_fns = []
