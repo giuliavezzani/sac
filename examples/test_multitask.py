@@ -28,7 +28,7 @@ SHARED_PARAMS = {
     "max_pool_size": 1E6,
     "n_train_repeat": 1,
     "epoch_length": 1000,
-    "snapshot_mode": 'gap',
+    "snapshot_mode": 'last',
     "snapshot_gap": 100,
     "sync_pkl": True,
 }
@@ -91,7 +91,7 @@ AVAILABLE_ENVS = list(ENV_PARAMS.keys())
 
 def parse_args():
     dd_log_dir = dd.get_args('log_dir', '../../data/sac/multitasl/tests/')
-    dd_file_goal = dd.get_args('file_goals', '/home/giulia/NIPS/sac/sac/envs/goals/goals_ant_forward_backward.pkl')
+    dd_file_goal = dd.get_args('file_goals', '/home/giulia/NIPS/sac/sac/envs/goals/ant_10_goals.pkl')
     dd_file_env = dd.get_args('file_env', '/home/giulia/NIPS/sac/low_gear_ratio_ant.xml')
     parser = argparse.ArgumentParser()
     parser.add_argument('--env',
