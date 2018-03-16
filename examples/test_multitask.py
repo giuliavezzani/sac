@@ -24,7 +24,7 @@ SHARED_PARAMS = {
     'layer_sizes': 128,
     'layer_sizes_qf': 128,
     'layer_sizes_extra_qf': 128,
-    "batch_size": 128,
+    "batch_size": 640,
     "max_pool_size": 1E6,
     "n_train_repeat": 1,
     "epoch_length": 1000,
@@ -93,6 +93,7 @@ def parse_args():
     dd_log_dir = dd.get_args('log_dir', '../../data/sac/multitasl/tests/')
     dd_file_goal = dd.get_args('file_goals', '/home/giulia/NIPS/sac/sac/envs/goals/ant_10_goals.pkl')
     dd_file_env = dd.get_args('file_env', '/home/giulia/NIPS/sac/low_gear_ratio_ant.xml')
+    dd_save_file = dd.get_args('save_file', '../../data/rewards/')
     parser = argparse.ArgumentParser()
     parser.add_argument('--env',
                         type=str,
@@ -103,6 +104,7 @@ def parse_args():
     parser.add_argument('--log_dir', type=str, default=dd_log_dir)
     parser.add_argument('--file_goals', type=str, default=dd_file_goal)
     parser.add_argument('--file_env', type=str, default=dd_file_env)
+    parser.add_argument('--save_file', type=str, default=dd_save_file)
     args = parser.parse_args()
 
     return args
@@ -116,6 +118,8 @@ def get_variants(args):
     file_params = {'file_env': args.file_env}
     params.update(file_params)
     file_params = {'log_dir': args.log_dir}
+    params.update(file_params)
+    file_params = {'save_file': args.save_file}
     params.update(file_params)
 
     vg = VariantGenerator()
@@ -204,6 +208,7 @@ def run_experiment(variant):
         num_tasks=num_tasks,
         save_full_state=False,
         batch_size=variant['batch_size'],
+        save_file=variant['save_file'],
     )
 
     algorithm.train()

@@ -30,6 +30,7 @@ class RLAlgorithmMultiTask(Algorithm):
             eval_deterministic=True,
             eval_render=False,
             num_tasks=2,
+            save_file=None,
     ):
         """
         Args:
@@ -69,6 +70,7 @@ class RLAlgorithmMultiTask(Algorithm):
         self.envs = []
         self.policies = []
         self.pools = []
+        self.save_file = save_file
 
 
     def _train(self, envs, policies, pools):
@@ -80,6 +82,17 @@ class RLAlgorithmMultiTask(Algorithm):
             pool (`PoolBase`): Sample pool to add samples to
         """
         self._init_training(envs, policies, pools)
+
+        keys_obs = []
+        keys_rews = []
+        dictionary = {}
+
+
+        for i in range(self._num_tasks):
+            keys_obs.append('obs-'+str(i))
+
+        for i in range(self._num_tasks):
+            keys_rews.append('rewards-'+str(i))
 
         with self._sess.as_default():
             n_episodes = 0
@@ -94,6 +107,8 @@ class RLAlgorithmMultiTask(Algorithm):
             max_path_returns = []
             terminals = []
 
+            data_to_save = []
+
             for task in range(self._num_tasks):
                 observations.append(self.envs[task].reset(reset_args=task))
                 self.policies[task].reset()
@@ -104,9 +119,16 @@ class RLAlgorithmMultiTask(Algorithm):
                 max_path_returns.append(-np.inf)
                 terminals.append(0)
 
+            rewards_per_ep = []
+            observations_per_ep = []
+            epoch_count = 0
+
             for epoch in gt.timed_for(
                     range(self._n_epochs + 1), save_itrs=True):
                 logger.push_prefix('Epoch #%d | ' % epoch)
+
+                rewards_to_coll = [[] for i in range(self._num_tasks)]
+                observations_to_coll = [[] for i in range(self._num_tasks)]
 
                 for t in range(self._epoch_length):
                     iteration = t + epoch * self._epoch_length
@@ -143,6 +165,9 @@ class RLAlgorithmMultiTask(Algorithm):
                         else:
                             observations[task] = next_ob
 
+                        rewards_to_coll[task].append(reward)
+                        observations_to_coll[task].append(observations[task])
+
                     if (terminals[task] == True or
                          path_lenghts[task] >= self._max_path_length
                          for task in range(self._num_tasks)):
@@ -151,19 +176,57 @@ class RLAlgorithmMultiTask(Algorithm):
                     gt.stamp('sample')
                     for i in range(self._n_train_repeat):
                         batchs = []
+                        entire_d = []
                     ### BUG ALERT: to be handle the case where batch is not of the correct slide
                         for task in range(self._num_tasks):
                             if self.pools[task].size >= self._min_pool_size:
                                 batchs.append(self.pools[task].random_batch(self._batch_size_per_task))
+                                if np.mod(epoch, 50)==0:
+                                    entire_d.append(self.pools[task].random_batch(self._epoch_length))
 
                         if len(batchs) == self._num_tasks:
                             batch = {}
+                            entire_data = {}
 
                             for k in batchs[task].keys():
                                 batch[k] = np.concatenate([batchs[task][k] for task in range(self._num_tasks)])
-                            self._do_training(iteration, batch)
+                                if np.mod(epoch, 50)==0:
+                                    entire_data[k] = np.concatenate([entire_d[task][k] for task in range(self._num_tasks)])
 
-                    gt.stamp('train')
+                            self._do_training(iteration, batch, epoch, entire_data)
+
+
+                if np.mod(epoch, 50)==0:
+                    rewards_per_ep.append(rewards_to_coll)
+                    observations_per_ep.append(observations_to_coll)
+                    #rewards_1_per_ep.append(rewards_1)
+                    #observations_1_per_ep.append(observations_1)
+                    count = 0
+
+                    for i in sorted(keys_obs):
+                        obs_tmp = []
+                        for l in range(len(observations_per_ep)):
+                            obs_tmp.append(observations_per_ep[l][count])
+                        dictionary[i] = obs_tmp
+
+                        count+=1
+
+                    count = 0
+                    for j in sorted(keys_rews):
+                        rew_tmp = []
+                        for l in range(len(observations_per_ep)):
+                            rew_tmp.append(rewards_per_ep[l][count])
+                        dictionary[j] = rew_tmp
+
+                        count += 1
+
+                    epoch_count += 1
+
+                    import pickle
+                    pickle.dump(dictionary, open(self.save_file+'/data-collected.pkl', "wb"))
+
+
+                gt.stamp('train')
 
                 print('eval')
                 #self._evaluate(epoch)

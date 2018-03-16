@@ -1,4 +1,5 @@
 import numpy as np
+import pickle
 import tensorflow as tf
 
 from rllab.core.serializable import Serializable
@@ -86,7 +87,8 @@ class SACMultiTask(RLAlgorithmMultiTask, Serializable):
             tau=0.01,
             num_tasks=2,
             save_full_state=False,
-            batch_size=128
+            batch_size=128,
+            save_file=None,
     ):
         """
         Args:
@@ -113,6 +115,8 @@ class SACMultiTask(RLAlgorithmMultiTask, Serializable):
         Serializable.quick_init(self, locals())
         super(SACMultiTask, self).__init__(**base_kwargs)
 
+        self.save_file = save_file
+
         self._envs = envs
         self._policies = policies
         self._qf = qf
@@ -129,6 +133,22 @@ class SACMultiTask(RLAlgorithmMultiTask, Serializable):
         self._scale_reward = scale_reward
         self._discount = discount
         self._tau = tau
+
+        self.vf_d = [[] for i in range(self._num_tasks)]
+        self.vf_target_d = [[] for i in range(self._num_tasks)]
+        self.vf_data = []
+        self.vf_target_data = []
+
+        self.keys_vf = []
+        self.keys_vf_t = []
+        self.dictionary = {}
+
+
+        for i in range(self._num_tasks):
+            self.keys_vf.append('vf-'+str(i))
+
+        for i in range(self._num_tasks):
+            self.keys_vf_t.append('vf-t-'+str(i))
 
         self._save_full_state = save_full_state
 
@@ -211,7 +231,10 @@ class SACMultiTask(RLAlgorithmMultiTask, Serializable):
 
             with tf.variable_scope('target'):
                 vf_next_target_t = self._vf.get_output_for(self._obs_next_pl[task * self._batch_size_per_task : (task + 1) * self._batch_size_per_task],
+                task=task, reuse=tf.AUTO_REUSE)
+                vf_next_target_t_long = self._vf.get_output_for(self._obs_next_pl[task * self._epoch_length : (task + 1) * self._epoch_length],
                 task=task, reuse=tf.AUTO_REUSE)  # N
+                self.vf_target_d[task].append(vf_next_target_t_long)
                 self._vf_target_params = self._vf.get_params_internal()
 
             ys = tf.stop_gradient(
@@ -254,7 +277,10 @@ class SACMultiTask(RLAlgorithmMultiTask, Serializable):
 
             self._vf_t = self._vf.get_output_for(self._obs_pl[task * self._batch_size_per_task : (task + 1) * self._batch_size_per_task],
                 task=task, reuse=True)  # N
+            self._vf_t_long = self._vf.get_output_for(self._obs_pl[task * self._epoch_length : (task + 1) * self._epoch_length],
+                task=task, reuse=True)
             self._vf_params = self._vf.get_params_internal()
+            self.vf_d[task].append(self._vf_t_long)
 
             log_target_t = self._qf.get_output_for(
                 self._obs_pl[task * self._batch_size_per_task : (task + 1) * self._batch_size_per_task],
@@ -302,12 +328,37 @@ class SACMultiTask(RLAlgorithmMultiTask, Serializable):
         self._sess.run(self._target_ops)
 
     @overrides
-    def _do_training(self, itr, batch):
+    def _do_training(self, itr, batch, epoch, entire_data=None):
         """Runs the operations for updating training and target ops."""
 
         feed_dict = self._get_feed_dict(batch)
         self._sess.run(self._training_ops, feed_dict)
         self._sess.run(self._target_ops)
+
+        if np.mod(epoch, 50)==0:
+            feed_dict_big = self._get_feed_dict(entire_data)
+            self.vf_data.append(self._sess.run(self.vf_d, feed_dict_big))
+            self.vf_target_data.append(self._sess.run(self.vf_target_d, feed_dict_big))
+
+            count = 0
+            for i in sorted(self.keys_vf):
+                vf_data = []
+                for l in range(len(self.vf_data)):
+                    print(i)
+                    print(l)
+                    vf_data.append(self.vf_data[l][count])
+                self.dictionary[i] = vf_data
+                count += 1
+
+            count = 0
+            for j in sorted(self.keys_vf_t):
+                vf_t_data = []
+                for l in range(len(self.vf_target_data)):
+                    vf_t_data.append(self.vf_target_data[l][count])
+                self.dictionary[j] = vf_t_data
+
+                count += 1
+            pickle.dump(self.dictionary, open(self.save_file+'/vf-collected.pkl', "wb"))
 
     def _get_feed_dict(self, batch):
         """Construct TensorFlow feed_dict from sample batch."""
